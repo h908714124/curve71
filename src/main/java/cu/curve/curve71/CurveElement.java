@@ -1,17 +1,13 @@
 package cu.curve.curve71;
 
-import static cu.curve.curve71.FieldElement.identity;
-import static cu.curve.curve71.FieldElement.zero;
-
 import java.util.Objects;
+
+import static cu.curve.curve71.FieldElement.one;
+import static cu.curve.curve71.FieldElement.zero;
 
 public class CurveElement {
 
-  private static final FieldElement a = FieldElement.of(5);
-  private static final FieldElement b = FieldElement.of(7);
-
-  private static final CurveElement G = new CurveElement(a, b, identity());
-  private static final CurveElement INF = new CurveElement(zero(), identity(), zero());
+  private static final CurveElement INF = new CurveElement(zero(), one(), zero());
 
   private final FieldElement x;
   private final FieldElement y;
@@ -24,24 +20,34 @@ public class CurveElement {
   }
 
   public static CurveElement of(int x, int y) {
-    return new CurveElement(FieldElement.of(x), FieldElement.of(y), identity());
+    FieldElement x_ = FieldElement.of(x);
+    FieldElement y_ = FieldElement.of(y);
+    // The curve parameters are a = -1, b = 0
+    // i.e. the curve is defined by y^2 = x^3 - x, with x and y from P_71
+    // (Source: https://en.wikipedia.org/wiki/Elliptic_curve#Elliptic_curves_over_finite_fields)
+    if (!isOnCurve(x_, y_)) {
+      throw new IllegalArgumentException("not on curve");
+    }
+    return new CurveElement(x_, y_, one());
   }
 
-  public static CurveElement of(int x, int y, int z) {
-    return new CurveElement(FieldElement.of(x), FieldElement.of(y), FieldElement.of(z));
+  public static boolean isOnCurve(FieldElement x, FieldElement y) {
+    return x.pow(3).subtract(x).equals(y.square());
   }
 
+  // https://en.wikibooks.org/wiki/Cryptography/Prime_Curve/Jacobian_Coordinates#Point_Doubling_(4M_+_6S_or_4M_+_4S)
   public CurveElement twice() {
     if (isInfinity())
       return INF;
     FieldElement S = x.multiply(4).multiply(y.square());
-    FieldElement M = x.multiply(3).square().add(a.multiply(z.square().multiply(z.square())));
+    FieldElement M = x.square().multiply(3).add(z.pow(4).multiply(-1));
     FieldElement X_ = M.square().subtract(S.twice());
-    FieldElement Y_ = M.multiply(S.subtract(X_)).subtract(y.square().multiply(y.square()).multiply(8));
-    FieldElement Z_ = y.multiply(z).twice();
+    FieldElement Y_ = M.multiply(S.subtract(X_)).subtract(y.pow(4).multiply(8));
+    FieldElement Z_ = y.twice().multiply(z);
     return new CurveElement(X_, Y_, Z_);
   }
 
+  // https://en.wikibooks.org/wiki/Cryptography/Prime_Curve/Jacobian_Coordinates#Point_Addition_(12M_+_4S)
   public CurveElement add(CurveElement other) {
 
     FieldElement X1 = this.x;
@@ -57,16 +63,11 @@ public class CurveElement {
     FieldElement U1 = X1.multiply(Z2Z2);
     FieldElement U2 = X2.multiply(Z1Z1);
 
-
     FieldElement S1 = Y1.multiply(Z2).multiply(Z2Z2);
     FieldElement S2 = Y2.multiply(Z1).multiply(Z1Z1);
 
     if (U1.equals(U2)) {
-      if (!S1.equals(S2)) {
-        return INF;
-      } else {
-        return this.twice();
-      }
+      return S1.equals(S2) ? twice() : INF;
     }
 
     FieldElement H = U2.subtract(U1);
@@ -82,10 +83,6 @@ public class CurveElement {
     return new CurveElement(X3, Y3, Z3);
   }
 
-  public static CurveElement getG() {
-    return G;
-  }
-
   public boolean isInfinity() {
     return z.isZero();
   }
@@ -96,7 +93,8 @@ public class CurveElement {
 
   @Override
   public String toString() {
-    return String.format("(%s:%s:%s)", x, y, z);
+    CurveElement n = normalize();
+    return String.format("(%s:%s:%s)", n.x, n.y, n.z);
   }
 
   public CurveElement normalize() {
@@ -109,7 +107,17 @@ public class CurveElement {
     FieldElement U = z.inverse();
     FieldElement X_ = x.multiply(U.square());
     FieldElement Y_ = y.multiply(U.multiply(U).multiply(U));
-    return new CurveElement(X_, Y_, FieldElement.identity());
+    return new CurveElement(X_, Y_, FieldElement.one());
+  }
+
+  public int order() {
+    int n = 1;
+    CurveElement t = this;
+    while (!t.isInfinity()) {
+      t = t.add(this);
+      n++;
+    }
+    return n;
   }
 
   @Override
@@ -119,12 +127,24 @@ public class CurveElement {
     CurveElement that = ((CurveElement) o).normalize();
     CurveElement n = this.normalize();
     return Objects.equals(n.x, that.x) &&
-      Objects.equals(n.y, that.y);
+        Objects.equals(n.y, that.y);
   }
 
   @Override
   public int hashCode() {
     CurveElement n = this.normalize();
     return Objects.hash(n.x, n.y);
+  }
+
+  public FieldElement getXCoord() {
+    return x;
+  }
+
+  public FieldElement getYCoord() {
+    return y;
+  }
+
+  public FieldElement getZCoord() {
+    return z;
   }
 }

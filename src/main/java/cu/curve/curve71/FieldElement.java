@@ -2,44 +2,58 @@ package cu.curve.curve71;
 
 import java.util.Objects;
 
+// The prime field P_71
 public class FieldElement {
 
   public static final int P = 71;
-  private static final FieldElement ZERO = FieldElement.of(0);
-  private static final FieldElement ONE = FieldElement.of(1);
 
-  private final int val;
+  private final int x;
 
-  private FieldElement(int val) {
-    while (val < 0) {
-      val += P;
+  private static final FieldElement[] CACHE = new FieldElement[P];
+
+  private FieldElement(int x) {
+    while (x < 0) {
+      x += P;
     }
-    this.val = val % P;
+    this.x = x % P;
+  }
+
+  static {
+    for (int i = 0; i < P; i++) {
+      CACHE[i] = new FieldElement(i);
+    }
+  }
+
+  private static FieldElement at(int x) {
+    while (x < 0) {
+      x += P;
+    }
+    return CACHE[x % P];
   }
 
   public static FieldElement of(int val) {
-    return new FieldElement(val);
+    return at(val);
   }
 
   public FieldElement multiply(FieldElement other) {
-    return new FieldElement((this.val * other.val) % P);
+    return at(this.x * other.x);
   }
 
   public FieldElement multiply(int other) {
-    return new FieldElement((this.val * other) % P);
+    return at(this.x * other);
   }
 
   public FieldElement add(FieldElement other) {
-    return new FieldElement((this.val + other.val) % P);
+    return at(this.x + other.x);
   }
 
   public FieldElement subtract(FieldElement other) {
-    return new FieldElement((this.val - other.val) % P);
+    return at(this.x - other.x);
   }
 
   public FieldElement div(FieldElement other) {
     if (isZero()) {
-      return new FieldElement(0);
+      return at(0);
     }
     if (other.isOne()) {
       return this;
@@ -48,47 +62,55 @@ public class FieldElement {
   }
 
   public boolean isOne() {
-    return val == 1;
+    return x == 1;
   }
 
   public boolean isZero() {
-    return val == 0;
+    return x == 0;
   }
 
   public FieldElement inverse() {
     if (isZero()) {
-      throw new IllegalArgumentException("divide by zero");
+      throw new IllegalArgumentException("inverting zero");
     }
     if (isOne()) {
-      return new FieldElement(1);
+      return at(1);
     }
     for (int i = 2; i < P; i++) {
-      if ((i * val) % P == 1) {
-        return new FieldElement(i);
+      if ((i * x) % P == 1) {
+        return at(i);
       }
     }
     throw new AssertionError();
   }
 
   public FieldElement square() {
-    return multiply(this);
+    return pow(2);
+  }
+
+  public FieldElement pow(int exp) {
+    FieldElement res = one();
+    for (int i = 0; i < exp; i++) {
+      res = res.multiply(this);
+    }
+    return res;
   }
 
   public FieldElement twice() {
-    return add(this);
-  }
-
-  public static FieldElement identity() {
-    return ONE;
+    return at(2 * x);
   }
 
   public static FieldElement zero() {
-    return ZERO;
+    return at(0);
+  }
+
+  public static FieldElement one() {
+    return at(1);
   }
 
   @Override
   public String toString() {
-    return Integer.toString(val);
+    return Integer.toString(x);
   }
 
   @Override
@@ -96,11 +118,11 @@ public class FieldElement {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
     FieldElement that = (FieldElement) o;
-    return val == that.val;
+    return x == that.x;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(val);
+    return Objects.hash(x);
   }
 }

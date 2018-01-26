@@ -1,55 +1,57 @@
 package cu.curve.curve71;
 
-import static java.util.Collections.unmodifiableSet;
-
-import java.util.LinkedHashSet;
-import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-// https://stackoverflow.com/questions/8389324/how-to-calculate-point-addition-using-jacobian-coordinate-system-over-elliptic-c?rq=1
-// http://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-add-2007-bl
-// https://en.wikibooks.org/wiki/Cryptography/Prime_Curve/Jacobian_Coordinates
-// https://en.wikipedia.org/wiki/Elliptic_curve
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 class CurveElementTest {
 
-  private Set<CurveElement> curve;
+  private Set<CurveElement> group;
 
   @BeforeEach
   void init() {
-    Set<CurveElement> curve = new LinkedHashSet<>();
-    curve.add(CurveElement.infinity());
+    Set<CurveElement> set = new LinkedHashSet<>();
+    set.add(CurveElement.infinity());
     for (int i = 0; i < FieldElement.P; i++) {
       for (int j = 0; j < FieldElement.P; j++) {
         FieldElement x = FieldElement.of(i);
         FieldElement y = FieldElement.of(j);
-        if (x.multiply(x).multiply(x).subtract(x).equals(y.square())) {
+        if (CurveElement.isOnCurve(x, y)) {
           CurveElement element = CurveElement.of(i, j);
-          curve.add(element);
+          set.add(element);
         }
       }
     }
-    this.curve = unmodifiableSet(curve);
+    this.group = unmodifiableSet(set);
   }
 
   @Test
-  void getG() {
-    for (CurveElement element : curve) {
-      int order = order(element);
-      System.out.println(element + ": " + order);
+  void order() {
+    for (CurveElement element : group) {
+      assertTrue(element.order() <= 36);
     }
   }
 
-  private int order(CurveElement g) {
-    int n = 0;
-    CurveElement t = g;
-    while (!t.isInfinity()) {
-      t = t.add(g);
-      if (!curve.contains(t)) {
-        throw new IllegalArgumentException("t: " + t + ", g: " + g);
+  @Test
+  void inGroup() {
+    for (CurveElement element : group) {
+      CurveElement t = element;
+      while (!t.isInfinity()) {
+        assertTrue(group.contains(t));
+        assertTrue(CurveElement.isOnCurve(t.getXCoord(), t.getYCoord()));
+        t = t.add(element).normalize();
       }
-      n++;
     }
-    return n;
+  }
+
+  @Test
+  void numberOfElements() {
+    assertEquals(72, group.size());
   }
 }
